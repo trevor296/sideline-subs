@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0;font:14px system-ui}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<title>Sideline Subs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column, phone-first. The live view is a scoreboard: clock on top, field and bench as two colour-coded panels, the next change as the one loud element. */
+:root{
+  --bg:#f5f6f2; --surface:#ffffff; --fg:#15211a; --muted:#5f6c64; --line:#d8ddd6;
+  --pitch:#1f7a3f; --pitch-ink:#ffffff; --field-fill:#e4f0e8;
+  --bench:#b2661a; --bench-fill:#f5ebdc; --alert:#c43f2d; --alert-fill:#fbe7e3;
+  --display:'Barlow Condensed','Arial Narrow',Arial,sans-serif;
+  --body:'Barlow',system-ui,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){ --bg:#0f1713; --surface:#18231c; --fg:#eef3ee; --muted:#9fb0a5; --line:#2b3a31; --pitch:#3fb46a; --pitch-ink:#07130b; --field-fill:#16301f; --bench:#e0a24a; --bench-fill:#33281a; --alert:#f06a58; --alert-fill:#3a1b17; color-scheme:dark }
+}
+:root[data-theme="dark"]{ --bg:#0f1713; --surface:#18231c; --fg:#eef3ee; --muted:#9fb0a5; --line:#2b3a31; --pitch:#3fb46a; --pitch-ink:#07130b; --field-fill:#16301f; --bench:#e0a24a; --bench-fill:#33281a; --alert:#f06a58; --alert-fill:#3a1b17; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:17px/1.4 var(--body);padding-block:12px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:560px;margin:0 auto;display:grid;gap:16px}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.05;text-wrap:balance}
+h1{font-size:36px;font-weight:700}
+h2{font-size:26px;font-weight:600}
+h3{font-size:20px;font-weight:600}
+p{margin:0}
+.muted{color:var(--muted)}
+.note{color:var(--muted);font-size:15px;max-width:60ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{font-weight:600}
+nav button[aria-current="page"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:12px}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:10px;padding:10px 16px;cursor:pointer;min-height:44px}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--pitch);outline-offset:2px}
+button.primary{background:var(--pitch);color:var(--pitch-ink);border-color:var(--pitch)}
+button.big{font-family:var(--display);font-size:24px;padding:14px 20px;width:100%}
+button.danger{color:var(--alert)}
+button.small{min-height:36px;padding:6px 12px;font-size:15px}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0;max-width:100%}
+textarea{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:420px){ .grid2{grid-template-columns:1fr} }
+.field{display:grid;gap:4px}
+label{font-size:15px;font-weight:500}
+.warn{color:var(--bench);font-size:15px;font-weight:500}
+.err{color:var(--alert);font-size:15px;font-weight:500}
+/* attendance */
+.att{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.att label{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:500;background:var(--bg)}
+.att label:has(input:checked){background:var(--field-fill);border-color:var(--pitch)}
+.att input{width:20px;height:20px;margin:0;accent-color:var(--pitch)}
+/* live scoreboard */
+.board{display:grid;gap:12px}
+.clockbar{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.clock{font-family:var(--display);font-size:64px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.clock.paused{color:var(--muted)}
+.sub-meta{font-size:15px;color:var(--muted)}
+.countdown{font-family:var(--display);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums}
+.countdown.due{color:var(--alert)}
+.keeper{display:flex;gap:10px;align-items:baseline}
+.keeper b{font-family:var(--display);font-size:24px;font-weight:600}
+.lists{display:grid;grid-template-columns:3fr 2fr;gap:10px}
+@media (max-width:420px){ .lists{grid-template-columns:1fr} }
+.list{border-radius:12px;padding:12px;display:grid;gap:6px;align-content:start}
+.list.field{background:var(--field-fill)}
+.list.bench{background:var(--bench-fill)}
+.list .eyebrow{color:inherit;opacity:.75}
+.names{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--display);font-size:20px;font-weight:600;padding:6px 10px;border-radius:8px;background:var(--surface);border:1px solid transparent}
+.chip.off{border-color:var(--alert);color:var(--alert)}
+.chip.on{border-color:var(--pitch);color:var(--pitch)}
+.next{border:2px solid var(--fg);border-radius:12px;padding:12px;display:grid;gap:8px}
+.next.due{border-color:var(--alert);background:var(--alert-fill)}
+.swap{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
+.swap .tag{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
+.swap .tag.off{color:var(--alert)}
+.swap .tag.on{color:var(--pitch)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.actions button{min-height:48px}
+/* picker */
+.picker{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px;background:var(--bg)}
+.picks{display:flex;flex-wrap:wrap;gap:6px}
+.picks button{min-height:40px;padding:6px 12px;font-family:var(--display);font-size:20px;font-weight:600}
+.picks button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.check{display:flex;gap:10px;align-items:center;font-weight:500}
+.check input{width:20px;height:20px;margin:0;accent-color:var(--pitch)}
+/* plan + history tables */
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.t{font-family:var(--display);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.off{color:var(--alert)}
+.on{color:var(--pitch)}
+.tally{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px}
+.tally div{display:flex;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.tally b{font-family:var(--display);font-size:20px;font-weight:600}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:20}
+@media (prefers-reduced-motion:no-preference){ .next.due{animation:pulse 1.2s ease-in-out infinite} @keyframes pulse{50%{box-shadow:0 0 0 6px var(--alert-fill)}} }
+</style>
+
+<main>
+  <header class="row" style="justify-content:space-between">
+    <h1>Sideline Subs</h1>
+    <nav id="nav" hidden>
+      <button data-view="setup" class="small">Game</button>
+      <button data-view="history" class="small">Keepers</button>
+      <button data-view="settings" class="small">Settings</button>
+    </nav>
+  </header>
+
+  <!-- No pack yet -->
+  <section id="v-pack" class="panel" hidden>
+    <h2>Paste the team code</h2>
+    <p class="note">Your manager sends a code (or a link) from the admin page. Paste it here once; it stays on this phone.</p>
+    <textarea id="packInput" rows="5" placeholder="Paste code here"></textarea>
+    <div class="row"><button id="packSave" class="primary">Load team</button><span id="packErr" class="err"></span></div>
+  </section>
+
+  <!-- Attendance + keepers -->
+  <section id="v-setup" class="panel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2>Today's game</h2>
+      <div class="field" style="grid-auto-flow:column;align-items:center;gap:8px"><label for="round">Round</label><input id="round" type="number" min="1" style="width:80px"></div>
+    </div>
+    <div id="resumeBox" class="row" hidden>
+      <span class="warn">A game is in progress.</span>
+      <button id="resume" class="primary small">Back to the game</button>
+      <button id="discard" class="small danger">Abandon it</button>
+    </div>
+    <div>
+      <p class="eyebrow">Who's here</p>
+      <div class="att" id="attendance"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="k1">Keeper, 1st half</label><select id="k1"></select><span id="k1warn" class="warn"></span></div>
+      <div class="field"><label for="k2">Keeper, 2nd half</label><select id="k2"></select><span id="k2warn" class="warn"></span></div>
+    </div>
+    <p class="note" id="setupNote"></p>
+    <button id="generate" class="primary big">Generate</button>
+  </section>
+
+  <!-- Plan preview -->
+  <section id="v-plan" class="panel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2 id="planTitle">Plan</h2>
+      <button id="planBack" class="small">Change</button>
+    </div>
+    <div id="planBody" style="display:grid;gap:14px"></div>
+    <button id="startGame" class="primary big">Start 1st half</button>
+  </section>
+
+  <!-- Live -->
+  <section id="v-live" class="panel board" hidden>
+    <div class="clockbar">
+      <div>
+        <p class="eyebrow" id="liveHalf">1st half</p>
+        <div class="clock" id="clock">00:00</div>
+      </div>
+      <button id="clockBtn" class="primary">Start clock</button>
+    </div>
+    <div class="keeper"><span class="eyebrow">In goal</span><b id="liveKeeper"></b></div>
+    <div class="lists">
+      <div class="list field"><span class="eyebrow">On the field</span><div class="names" id="fieldNames"></div></div>
+      <div class="list bench"><span class="eyebrow">Bench</span><div class="names" id="benchNames"></div></div>
+    </div>
+    <div class="next" id="nextBox">
+      <div class="row" style="justify-content:space-between">
+        <span class="eyebrow" id="nextLabel">Next change</span>
+        <span class="countdown" id="countdown">5:00</span>
+      </div>
+      <div class="swap" id="nextSwap"></div>
+      <button id="advance" class="primary big">Subs made</button>
+    </div>
+    <div class="actions">
+      <button id="btnQuick">Quick sub</button>
+      <button id="btnOut">Player out</button>
+      <button id="btnKeeper">Change keeper</button>
+      <button id="btnPlan" class="small">Full plan</button>
+    </div>
+    <div id="picker" class="picker" hidden></div>
+    <div id="livePlan" hidden></div>
+  </section>
+
+  <!-- Half time -->
+  <section id="v-half" class="panel" hidden>
+    <h2>Half time</h2>
+    <p class="note">Confirm who goes in goal for the second half. Players marked out for the game aren't listed.</p>
+    <div class="field"><label for="k2b">Keeper, 2nd half</label><select id="k2b"></select></div>
+    <button id="startSecond" class="primary big">Start 2nd half</button>
+  </section>
+
+  <!-- Summary -->
+  <section id="v-summary" class="panel" hidden>
+    <h2>Full time</h2>
+    <div id="summaryBody" style="display:grid;gap:12px"></div>
+    <button id="saveGame" class="primary big">Save game</button>
+  </section>
+
+  <!-- History -->
+  <section id="v-history" class="panel" hidden>
+    <h2>Keeper halves</h2>
+    <p class="note">Rounds already played before the code was built count as scheduled. Rounds you run here are logged as they actually went.</p>
+    <div class="tally" id="tally"></div>
+    <div style="overflow-x:auto"><table id="histTable"><thead><tr><th>Round</th><th>1st half</th><th>2nd half</th><th></th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- Settings -->
+  <section id="v-settings" class="panel" hidden>
+    <h2>Settings</h2>
+    <div class="grid2">
+      <div class="field"><label for="halfLen">Half length (minutes)</label><input id="halfLen" type="number" min="5" max="60"></div>
+      <div class="field"><label for="winLen">Minutes between subs</label><input id="winLen" type="number" min="1" max="30"></div>
+    </div>
+    <p class="note" id="settingsNote"></p>
+    <div class="field">
+      <label for="packInput2">Replace the team code</label>
+      <textarea id="packInput2" rows="3" placeholder="Paste a new code from the manager"></textarea>
+      <div class="row"><button id="packSave2">Load new code</button><span id="packErr2" class="err"></span></div>
+    </div>
+    <div class="row"><button id="clearAll" class="danger">Clear everything on this phone</button><span id="clearNote" class="muted"></span></div>
+  </section>
+</main>
+
+<script>
+(function(){
+'use strict';
+/* ---------- storage ---------- */
+const LS='sideline.v1.';
+function load(k,d){ try{ const v=localStorage.getItem(LS+k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+function save(k,v){ try{ localStorage.setItem(LS+k,JSON.stringify(v)); }catch(e){} }
+let pack=load('pack',null), settings=Object.assign({half:20,win:5},load('settings',{})), history=load('history',[]), game=load('game',null);
+
+/* ---------- pack ---------- */
+function decodePack(code){
+  code=code.trim(); const hash=code.indexOf('#'); if(hash>=0) code=code.slice(hash+1);
+  code=code.replace(/-/g,'+').replace(/_/g,'/'); while(code.length%4) code+='=';
+  const bin=atob(code); const bytes=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  const p=JSON.parse(new TextDecoder().decode(bytes));
+  if(!p||p.v!==1||!Array.isArray(p.n)||!Array.isArray(p.g)||!Array.isArray(p.k)) throw new Error('bad');
+  return p;
+}
+function enumerateSubsets(N){ const out=[]; for(let s=N-1;s>=7;s--) combos(N,s,out); return out; }
+function combos(N,s,out){ const c=[]; (function rec(start){ if(c.length===s){ out.push(c.slice()); return; } for(let i=start;i<N;i++){ c.push(i); rec(i+1); c.pop(); } })(0); }
+let subsets=[];
+function permFor(O){
+  const key=O.slice().sort((a,b)=>a-b).join(',');
+  const i=subsets.findIndex(s=>s.join(',')===key);
+  if(i<0||!pack.g[i]) return null;
+  return pack.g[i].split('').map(ch=>parseInt(ch,36));
+}
+function name(i){ return pack.n[i]; }
+function names(arr){ return arr.map(name).join(', '); }
+function sortByName(arr){ return arr.slice().sort((a,b)=>name(a).localeCompare(name(b))); }
+
+/* ---------- rotation ---------- */
+function windowsPerHalf(){ return Math.max(1,Math.round(settings.half/settings.win)); }
+// Plan benches for windows from..W-1 given outfield set O and how many windows each player has sat so far.
+function planHalf(O,sat,W,from){
+  const n=O.length, out=[];
+  if(n<=6){ for(let w=from;w<W;w++) out[w]=[]; return out; }
+  const perm=permFor(O); if(!perm){ for(let w=from;w<W;w++) out[w]=[]; return out; }
+  const b=n-6;
+  const benchAt=k=>{ const r=[]; for(let j=0;j<b;j++) r.push(perm[(k*b+j)%n]); return r; };
+  let best=0, bestScore=Infinity;
+  for(let k=0;k<n;k++){ const s=benchAt(k).reduce((a,p)=>a+(sat[p]||0),0); if(s<bestScore){ bestScore=s; best=k; } }
+  for(let w=from;w<W;w++) out[w]=benchAt(best+(w-from));
+  return out;
+}
+function without(arr,x){ return arr.filter(p=>p!==x); }
+function outfield(g){ return g.present.filter(p=>p!==g.hs.keeper&&!g.out.includes(p)); }
+
+/* ---------- game lifecycle ---------- */
+function newGame(round,present,k1,k2){
+  return {round,present,out:[],keepers:[k1,k2],sat:{},halves:[],hs:null,startedAt:Date.now()};
+}
+function startHalf(g,h){
+  const keeper=g.keepers[h-1];
+  g.hs={h,keeper,keeperLog:[keeper],w:0,plan:[],bench:[],field:[],acc:0,startTs:null,running:false};
+  const O=outfield(g); const W=windowsPerHalf();
+  g.hs.plan=planHalf(O,g.sat,W,0);
+  applyWindow(g);
+}
+function applyWindow(g){
+  const O=outfield(g); const bench=g.hs.plan[g.hs.w]||[];
+  g.hs.bench=bench.filter(p=>O.includes(p));
+  g.hs.field=O.filter(p=>!g.hs.bench.includes(p));
+  g.hs.bench.forEach(p=>{ g.sat[p]=(g.sat[p]||0)+1; });
+}
+function replan(g){
+  const O=outfield(g); const W=windowsPerHalf();
+  const future=planHalf(O,g.sat,W,g.hs.w+1);
+  for(let w=g.hs.w+1;w<W;w++) g.hs.plan[w]=future[w];
+}
+function advance(g){
+  const W=windowsPerHalf();
+  if(g.hs.w<W-1){ g.hs.w++; applyWindow(g); return 'window'; }
+  return 'end';
+}
+function elapsedMs(hs){ return hs.acc+(hs.running&&hs.startTs?Date.now()-hs.startTs:0); }
+function mostRested(g,exclude){
+  const cands=g.hs.bench.filter(p=>!exclude.includes(p));
+  if(!cands.length) return null;
+  return cands.slice().sort((a,b)=>(g.sat[b]||0)-(g.sat[a]||0))[0];
+}
+function quickSub(g,off,on,outForGame){
+  g.hs.field=without(g.hs.field,off); if(on!=null){ g.hs.field.push(on); g.hs.bench=without(g.hs.bench,on); }
+  if(outForGame){ g.out.push(off); replan(g); } else g.hs.bench.push(off);
+}
+function playerOut(g,p,replacement){
+  if(g.hs.field.includes(p)){ g.hs.field=without(g.hs.field,p); if(replacement!=null){ g.hs.field.push(replacement); g.hs.bench=without(g.hs.bench,replacement); } }
+  else g.hs.bench=without(g.hs.bench,p);
+  g.out.push(p); replan(g);
+}
+function changeKeeper(g,newK,oldOut){
+  const old=g.hs.keeper; g.hs.keeper=newK; g.hs.keeperLog.push(newK);
+  if(g.hs.field.includes(newK)){
+    g.hs.field=without(g.hs.field,newK);
+    if(!oldOut) g.hs.field.push(old); else { const r=mostRested(g,[]); if(r!=null){ g.hs.field.push(r); g.hs.bench=without(g.hs.bench,r); } }
+  } else {
+    g.hs.bench=without(g.hs.bench,newK);
+    if(!oldOut) g.hs.bench.push(old);
+  }
+  if(oldOut) g.out.push(old);
+  replan(g);
+}
+function endHalf(g){
+  g.hs.running=false; g.hs.ended=true;
+  g.halves[g.hs.h-1]={keepers:g.hs.keeperLog.slice()};
+}
+// Which screen a game in progress belongs on.
+function gameView(g){
+  if(!g||!g.hs) return 'setup';
+  if(!g.hs.ended) return 'live';
+  return g.hs.h===1?'half':'summary';
+}
+function openHalfTime(){ fillSelect(document.getElementById('k2b'),sortByName(game.present.filter(p=>!game.out.includes(p))),game.keepers[1]); show('half'); }
+// Preview both halves with no interruptions.
+function simulate(g){
+  const sim=JSON.parse(JSON.stringify(g)); sim.sat={}; const W=windowsPerHalf(); const halves=[];
+  for(let h=1;h<=2;h++){
+    startHalf(sim,h); const wins=[];
+    for(let w=0;w<W;w++){ if(w>0) advance(sim); wins.push({bench:sim.hs.bench.slice(),field:sim.hs.field.slice()}); }
+    halves.push({keeper:sim.hs.keeper,wins});
+  }
+  return {halves,sat:sim.sat};
+}
+
+/* ---------- keeper history ---------- */
+function keeperRows(){
+  const rows={};
+  (pack.k||[]).forEach((w,i)=>{ if(i<(pack.done||0)) rows[i+1]={round:i+1,k:[w[0]>=0?[w[0]]:[],w[1]>=0?[w[1]]:[]],src:'schedule'}; });
+  history.forEach((h,i)=>{ rows[h.round]={round:h.round,k:h.keepers,src:'played',idx:i}; });
+  return Object.values(rows).sort((a,b)=>a.round-b.round);
+}
+function keeperTally(){
+  const t={}; pack.n.forEach((_,i)=>t[i]=0);
+  keeperRows().forEach(r=>r.k.forEach(half=>half.forEach(p=>{ if(t[p]!=null) t[p]++; })));
+  return t;
+}
+function nextRound(){ let r=pack.done||0; history.forEach(h=>{ r=Math.max(r,h.round); }); return r+1; }
+
+/* ---------- views ---------- */
+const views=['pack','setup','plan','live','half','summary','history','settings'];
+let currentView=null;
+function show(v){
+  currentView=v;
+  views.forEach(x=>{ document.getElementById('v-'+x).hidden=x!==v; });
+  const nav=document.getElementById('nav'); nav.hidden=!pack;
+  nav.querySelectorAll('button').forEach(b=>{ const on=b.dataset.view===v||(b.dataset.view==='setup'&&['plan','live','half','summary'].includes(v)); if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
+  if(v==='setup') renderSetup(); if(v==='history') renderHistory(); if(v==='settings') renderSettings(); if(v==='live') renderLive();
+}
+document.getElementById('nav').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; const v=b.dataset.view; if(v==='setup'&&game&&game.hs) goToGame(); else show(v); });
+function goToGame(){ const v=gameView(game); if(v==='half') openHalfTime(); else if(v==='summary'){ renderSummary(); show('summary'); } else show(v); }
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.append(t); setTimeout(()=>t.remove(),2200); }
+
+/* pack entry */
+function tryLoadPack(code,errEl){
+  try{ const p=decodePack(code); pack=p; subsets=enumerateSubsets(pack.n.length); save('pack',pack); errEl.textContent=''; toast('Team loaded'); show('setup'); }
+  catch(e){ errEl.textContent='That code didn’t work. Check you copied all of it.'; }
+}
+document.getElementById('packSave').addEventListener('click',()=>tryLoadPack(document.getElementById('packInput').value,document.getElementById('packErr')));
+document.getElementById('packSave2').addEventListener('click',()=>{ tryLoadPack(document.getElementById('packInput2').value,document.getElementById('packErr2')); document.getElementById('packInput2').value=''; });
+
+/* setup */
+let setupPresent=null;
+function renderSetup(){
+  const roundEl=document.getElementById('round'); if(!roundEl.value) roundEl.value=nextRound();
+  const resume=document.getElementById('resumeBox'); resume.hidden=!(game&&game.hs);
+  ['k1','k2'].forEach(id=>{ delete document.getElementById(id).dataset.touched; });
+  const att=document.getElementById('attendance'); att.innerHTML='';
+  if(!setupPresent) setupPresent=pack.n.map((_,i)=>i);
+  sortByName(pack.n.map((_,i)=>i)).forEach(i=>{
+    const l=document.createElement('label'); const c=document.createElement('input'); c.type='checkbox'; c.id='att-'+i; c.checked=setupPresent.includes(i);
+    c.addEventListener('change',()=>{ setupPresent=c.checked?setupPresent.concat(i):without(setupPresent,i); renderKeeperSelects(); });
+    l.append(c,document.createTextNode(name(i))); att.append(l);
+  });
+  renderKeeperSelects();
+}
+document.getElementById('round').addEventListener('change',renderKeeperSelects);
+function fillSelect(sel,options,value){
+  sel.innerHTML=''; options.forEach(i=>{ const o=document.createElement('option'); o.value=i; o.textContent=name(i); sel.append(o); });
+  if(value!=null&&options.includes(value)) sel.value=value;
+}
+function suggestKeeper(present,exclude){
+  const t=keeperTally();
+  const c=present.filter(p=>!exclude.includes(p)).sort((a,b)=>(t[a]-t[b])||name(a).localeCompare(name(b)));
+  return c[0];
+}
+function renderKeeperSelects(){
+  const round=Number(document.getElementById('round').value)||1;
+  const sched=(pack.k||[])[round-1]||[-1,-1];
+  const present=sortByName(setupPresent);
+  const k1=document.getElementById('k1'), k2=document.getElementById('k2');
+  const w1=document.getElementById('k1warn'), w2=document.getElementById('k2warn');
+  const prev1=Number(k1.value), prev2=Number(k2.value);
+  let v1=sched[0], v2=sched[1];
+  w1.textContent=''; w2.textContent='';
+  if(v1<0||!present.includes(v1)){ if(v1>=0) w1.textContent=name(v1)+' is scheduled but not here.'; else w1.textContent='Nobody scheduled; picking fewest keeper halves.'; v1=suggestKeeper(present,[v2]); }
+  if(v2<0||!present.includes(v2)||v2===v1){ if(v2>=0&&!present.includes(v2)) w2.textContent=name(v2)+' is scheduled but not here.'; else if(v2<0) w2.textContent='Nobody scheduled; picking fewest keeper halves.'; v2=suggestKeeper(present,[v1]); }
+  if(k1.dataset.touched&&present.includes(prev1)) v1=prev1; if(k2.dataset.touched&&present.includes(prev2)) v2=prev2;
+  fillSelect(k1,present,v1); fillSelect(k2,present,v2);
+  const n=present.length, b=Math.max(0,n-1-6), W=windowsPerHalf();
+  const note=document.getElementById('setupNote');
+  if(n<7) note.textContent=n+' here: short-handed, everyone plays the whole game.';
+  else if(b===0) note.textContent='7 here: no subs needed, everyone plays the whole game.';
+  else note.textContent=n+' here: '+b+' off at a time, changing every '+settings.win+' minutes, '+W+' windows a half.';
+}
+['k1','k2'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{ e.target.dataset.touched='1'; }));
+document.getElementById('resume').addEventListener('click',goToGame);
+document.getElementById('discard').addEventListener('click',()=>{ game=null; save('game',null); renderSetup(); toast('Game abandoned'); });
+document.getElementById('generate').addEventListener('click',()=>{
+  const present=sortByName(setupPresent); if(present.length<2){ toast('Tick who is here first'); return; }
+  const k1=Number(document.getElementById('k1').value), k2=Number(document.getElementById('k2').value);
+  if(k1===k2&&present.length>1){ toast('Pick two different keepers'); return; }
+  game=newGame(Number(document.getElementById('round').value)||1,present,k1,k2); save('game',game);
+  renderPlan(document.getElementById('planBody'),simulate(game),true); document.getElementById('planTitle').textContent='Round '+game.round+' plan';
+  show('plan');
+});
+document.getElementById('planBack').addEventListener('click',()=>{ if(!game.hs){ game=null; save('game',null); } show('setup'); });
+document.getElementById('startGame').addEventListener('click',()=>{ startHalf(game,1); save('game',game); show('live'); requestWake(); });
+
+function renderPlan(el,sim,withBtn){
+  el.innerHTML='';
+  const W=windowsPerHalf();
+  sim.halves.forEach((h,hi)=>{
+    const wrap=document.createElement('div'); wrap.style.display='grid'; wrap.style.gap='6px';
+    const title=document.createElement('h3'); title.textContent=(hi?'2nd':'1st')+' half · '+name(h.keeper)+' in goal'; wrap.append(title);
+    const tableWrap=document.createElement('div'); tableWrap.style.overflowX='auto';
+    const t=document.createElement('table'); t.innerHTML='<thead><tr><th>At</th><th>Off</th><th>On</th><th>Bench</th></tr></thead>';
+    const tb=document.createElement('tbody');
+    h.wins.forEach((w,i)=>{
+      const prev=i?h.wins[i-1].bench:[]; const off=w.bench.filter(p=>!prev.includes(p)); const on=prev.filter(p=>!w.bench.includes(p));
+      const tr=document.createElement('tr');
+      tr.innerHTML='<td class="t">'+(i===0?'Start':(i*settings.win)+"'")+'</td><td class="off">'+(i===0?'—':esc(names(off)))+'</td><td class="on">'+(i===0?'—':esc(names(on)))+'</td><td>'+esc(names(w.bench)||'—')+'</td>';
+      tb.append(tr);
+    });
+    t.append(tb); tableWrap.append(t); wrap.append(tableWrap); el.append(wrap);
+  });
+  if(withBtn){
+    const sit=document.createElement('p'); sit.className='note';
+    const parts=sortByName(game.present).map(p=>name(p)+' '+((sim.sat[p]||0)*settings.win)+'m');
+    sit.textContent='Minutes off the field if nothing changes: '+parts.join(', ')+'.'; el.append(sit);
+  }
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* live */
+let tick=null;
+function fmt(ms){ const s=Math.max(0,Math.floor(ms/1000)); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+function renderLive(){
+  if(!game||!game.hs){ show('setup'); return; }
+  const hs=game.hs, W=windowsPerHalf();
+  document.getElementById('liveHalf').textContent=(hs.h===1?'1st':'2nd')+' half · window '+(hs.w+1)+' of '+W;
+  document.getElementById('liveKeeper').textContent=name(hs.keeper);
+  const f=document.getElementById('fieldNames'); f.innerHTML=''; sortByName(hs.field).forEach(p=>{ const c=document.createElement('span'); c.className='chip'; c.textContent=name(p); f.append(c); });
+  const b=document.getElementById('benchNames'); b.innerHTML=''; if(!hs.bench.length){ const c=document.createElement('span'); c.className='muted'; c.textContent='Nobody'; b.append(c); } sortByName(hs.bench).forEach(p=>{ const c=document.createElement('span'); c.className='chip'; c.textContent=name(p); b.append(c); });
+  const swap=document.getElementById('nextSwap'); swap.innerHTML='';
+  const last=hs.w>=W-1;
+  document.getElementById('nextLabel').textContent=last?'End of half':'Next change';
+  if(!last){
+    const nb=(hs.plan[hs.w+1]||[]).filter(p=>outfield(game).includes(p));
+    const off=nb.filter(p=>hs.field.includes(p)); const on=hs.bench.filter(p=>!nb.includes(p));
+    swap.append(tagRow('off','Off',off),tagRow('on','On',on));
+    if(!off.length&&!on.length){ swap.innerHTML='<span class="muted">No change at the next window.</span>'; }
+  } else {
+    swap.innerHTML='<span class="muted">Play out the half, then end it here.</span>';
+  }
+  document.getElementById('advance').textContent=last?'End half':'Subs made';
+  updateClock();
+  if(tick) clearInterval(tick); tick=setInterval(updateClock,500);
+}
+function tagRow(cls,label,arr){
+  const frag=document.createDocumentFragment();
+  const t=document.createElement('span'); t.className='tag '+cls; t.textContent=label;
+  const n=document.createElement('span'); n.className='names';
+  if(!arr.length){ const c=document.createElement('span'); c.className='muted'; c.textContent='—'; n.append(c); }
+  arr.forEach(p=>{ const c=document.createElement('span'); c.className='chip '+cls; c.textContent=name(p); n.append(c); });
+  frag.append(t,n); return frag;
+}
+function updateClock(){
+  if(!game||!game.hs||currentView!=='live') return;
+  const hs=game.hs, W=windowsPerHalf();
+  const el=elapsedMs(hs); const clock=document.getElementById('clock'); clock.textContent=fmt(el); clock.classList.toggle('paused',!hs.running);
+  document.getElementById('clockBtn').textContent=hs.running?'Pause':(hs.acc?'Resume':'Start clock');
+  const target=(hs.w>=W-1?settings.half:(hs.w+1)*settings.win)*60000;
+  const rem=target-el; const cd=document.getElementById('countdown');
+  cd.textContent=rem<=0?'now':fmt(rem); cd.classList.toggle('due',rem<=0);
+  document.getElementById('nextBox').classList.toggle('due',rem<=0);
+}
+document.getElementById('clockBtn').addEventListener('click',()=>{
+  const hs=game.hs;
+  if(hs.running){ hs.acc=elapsedMs(hs); hs.running=false; hs.startTs=null; } else { hs.startTs=Date.now(); hs.running=true; requestWake(); }
+  save('game',game); updateClock();
+});
+document.getElementById('advance').addEventListener('click',()=>{
+  closePicker();
+  const r=advance(game);
+  if(r==='end'){
+    endHalf(game); save('game',game);
+    goToGame();
+  } else { save('game',game); renderLive(); }
+});
+document.getElementById('startSecond').addEventListener('click',()=>{
+  game.keepers[1]=Number(document.getElementById('k2b').value); startHalf(game,2); save('game',game); show('live'); requestWake();
+});
+document.getElementById('btnPlan').addEventListener('click',()=>{
+  const lp=document.getElementById('livePlan'); if(!lp.hidden){ lp.hidden=true; return; }
+  const hs=game.hs, W=windowsPerHalf(); const wins=[]; for(let w=0;w<W;w++) wins.push({bench:(hs.plan[w]||[]).filter(p=>outfield(game).includes(p))});
+  renderPlan(lp,{halves:[{keeper:hs.keeper,wins}],sat:game.sat},false); lp.firstChild.querySelector('h3').textContent='This half as planned'; lp.hidden=false;
+});
+
+/* pickers */
+const picker=document.getElementById('picker');
+function closePicker(){ picker.hidden=true; picker.innerHTML=''; }
+function pickButtons(container,options,selected,onPick){
+  container.innerHTML=''; container.className='picks';
+  sortByName(options).forEach(p=>{ const b=document.createElement('button'); b.type='button'; b.textContent=name(p); b.setAttribute('aria-pressed',String(p===selected)); b.addEventListener('click',()=>onPick(p)); container.append(b); });
+}
+function openPicker(title,build){
+  picker.innerHTML=''; picker.hidden=false;
+  const h=document.createElement('h3'); h.textContent=title; picker.append(h);
+  build(picker);
+  const row=document.createElement('div'); row.className='row';
+  const ok=document.createElement('button'); ok.className='primary'; ok.textContent='Confirm'; ok.id='pickOk';
+  const cancel=document.createElement('button'); cancel.textContent='Cancel'; cancel.addEventListener('click',closePicker);
+  row.append(ok,cancel); picker.append(row);
+  return ok;
+}
+function checkbox(labelText,id){ const l=document.createElement('label'); l.className='check'; const c=document.createElement('input'); c.type='checkbox'; c.id=id; l.append(c,document.createTextNode(labelText)); return {el:l,input:c}; }
+
+document.getElementById('btnQuick').addEventListener('click',()=>{
+  const hs=game.hs; let off=null, on=mostRested(game,[]);
+  const ok=openPicker('Quick sub',el=>{
+    const l1=document.createElement('p'); l1.className='eyebrow'; l1.textContent='Coming off'; const p1=document.createElement('div');
+    const l2=document.createElement('p'); l2.className='eyebrow'; l2.textContent='Going on'; const p2=document.createElement('div');
+    const redraw=()=>{ pickButtons(p1,hs.field,off,p=>{off=p;redraw();}); pickButtons(p2,hs.bench,on,p=>{on=p;redraw();}); };
+    redraw(); const cb=checkbox('Out for the rest of the game','cbOut'); el.append(l1,p1,l2,p2,cb.el);
+    el._cb=cb.input;
+  });
+  ok.addEventListener('click',()=>{ if(off==null){ toast('Pick who is coming off'); return; } quickSub(game,off,on,picker._cb.checked); save('game',game); closePicker(); renderLive(); toast(name(off)+' off'+(on!=null?', '+name(on)+' on':'')); });
+});
+document.getElementById('btnOut').addEventListener('click',()=>{
+  const hs=game.hs; let who=null, rep=null;
+  const ok=openPicker('Player out for the game',el=>{
+    const l1=document.createElement('p'); l1.className='eyebrow'; l1.textContent='Who'; const p1=document.createElement('div');
+    const l2=document.createElement('p'); l2.className='eyebrow'; l2.textContent='Replacement from the bench'; const p2=document.createElement('div');
+    const redraw=()=>{ pickButtons(p1,hs.field.concat(hs.bench),who,p=>{who=p; rep=hs.field.includes(p)?mostRested(game,[]):null; redraw();}); const onField=who!=null&&hs.field.includes(who); l2.hidden=!onField; p2.hidden=!onField; if(onField) pickButtons(p2,hs.bench,rep,p=>{rep=p;redraw();}); };
+    redraw(); el.append(l1,p1,l2,p2);
+  });
+  ok.addEventListener('click',()=>{ if(who==null){ toast('Pick the player'); return; } playerOut(game,who,rep); save('game',game); closePicker(); renderLive(); toast(name(who)+' is out for the game'); });
+});
+document.getElementById('btnKeeper').addEventListener('click',()=>{
+  const hs=game.hs; let who=null;
+  const ok=openPicker('Change keeper',el=>{
+    const l1=document.createElement('p'); l1.className='eyebrow'; l1.textContent='New keeper'; const p1=document.createElement('div');
+    const redraw=()=>pickButtons(p1,hs.field.concat(hs.bench),who,p=>{who=p;redraw();}); redraw();
+    const cb=checkbox(name(hs.keeper)+' is out for the rest of the game','cbKOut'); el.append(l1,p1,cb.el); el._cb=cb.input;
+  });
+  ok.addEventListener('click',()=>{ if(who==null){ toast('Pick the new keeper'); return; } changeKeeper(game,who,picker._cb.checked); save('game',game); closePicker(); renderLive(); toast(name(who)+' in goal'); });
+});
+
+/* summary + save */
+function renderSummary(){
+  const el=document.getElementById('summaryBody'); el.innerHTML='';
+  const p=document.createElement('p'); p.innerHTML='<b>Round '+game.round+'</b> · in goal: '+esc(game.halves.map(h=>names(h.keepers)).join(' / '));
+  const t=document.createElement('div'); t.className='tally';
+  sortByName(game.present).forEach(pl=>{ const d=document.createElement('div'); d.innerHTML='<span>'+esc(name(pl))+(game.out.includes(pl)?' <span class="muted">(out)</span>':'')+'</span><b>'+((game.sat[pl]||0)*settings.win)+'m off</b>'; t.append(d); });
+  const n=document.createElement('p'); n.className='note'; n.textContent='Minutes off the field are from the planned windows; quick subs aren’t counted to the minute.';
+  el.append(p,t,n);
+}
+document.getElementById('saveGame').addEventListener('click',()=>{
+  history=history.filter(h=>h.round!==game.round);
+  history.push({round:game.round,date:new Date().toISOString().slice(0,10),present:game.present,out:game.out,keepers:game.halves.map(h=>h.keepers),sat:game.sat});
+  save('history',history); game=null; save('game',null); setupPresent=null; document.getElementById('round').value=''; toast('Saved'); show('history');
+});
+
+/* history */
+function renderHistory(){
+  const t=keeperTally(); const tally=document.getElementById('tally'); tally.innerHTML='';
+  sortByName(pack.n.map((_,i)=>i)).forEach(i=>{ const d=document.createElement('div'); d.innerHTML='<span>'+esc(name(i))+'</span><b>'+t[i]+'</b>'; tally.append(d); });
+  const tb=document.querySelector('#histTable tbody'); tb.innerHTML='';
+  keeperRows().forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td class="t">'+r.round+'</td><td>'+esc(names(r.k[0]||[])||'—')+'</td><td>'+esc(names(r.k[1]||[])||'—')+'</td><td class="muted">'+(r.src==='played'?'':'scheduled')+'</td>';
+    if(r.src==='played'){ const td=tr.lastChild; const b=document.createElement('button'); b.className='small danger'; b.textContent='Remove'; b.addEventListener('click',()=>{ history.splice(r.idx,1); save('history',history); renderHistory(); }); td.append(b); }
+    tb.append(tr);
+  });
+  const sched=(pack.k||[]); for(let i=pack.done||0;i<sched.length;i++){ if(history.some(h=>h.round===i+1)) continue; const w=sched[i]; const tr=document.createElement('tr'); tr.className='muted'; tr.innerHTML='<td class="t">'+(i+1)+'</td><td>'+(w[0]>=0?esc(name(w[0])):'TBC')+'</td><td>'+(w[1]>=0?esc(name(w[1])):'TBC')+'</td><td class="muted">upcoming</td>'; tb.append(tr); }
+}
+
+/* settings */
+function renderSettings(){
+  document.getElementById('halfLen').value=settings.half; document.getElementById('winLen').value=settings.win;
+  document.getElementById('settingsNote').textContent=windowsPerHalf()+' sub windows a half. Changes apply to the next game you generate.';
+}
+['halfLen','winLen'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{
+  settings.half=Math.max(5,Number(document.getElementById('halfLen').value)||20); settings.win=Math.max(1,Number(document.getElementById('winLen').value)||5);
+  save('settings',settings); renderSettings();
+}));
+let clearArmed=false;
+document.getElementById('clearAll').addEventListener('click',()=>{
+  const n=document.getElementById('clearNote');
+  if(!clearArmed){ clearArmed=true; n.textContent='Tap again to confirm. This removes the team code and all saved games.'; setTimeout(()=>{ clearArmed=false; n.textContent=''; },5000); return; }
+  ['pack','settings','history','game'].forEach(k=>{ try{ localStorage.removeItem(LS+k); }catch(e){} });
+  pack=null; history=[]; game=null; settings={half:20,win:5}; setupPresent=null; show('pack');
+});
+
+/* wake lock */
+let wake=null;
+function requestWake(){ try{ if(navigator.wakeLock&&!wake) navigator.wakeLock.request('screen').then(w=>{ wake=w; w.addEventListener('release',()=>{ wake=null; }); }).catch(()=>{}); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&game&&game.hs&&game.hs.running) requestWake(); });
+
+/* boot */
+(function boot(){
+  const h=(location.hash||'').slice(1);
+  if(h&&h.length>40){ try{ const p=decodePack(h); pack=p; save('pack',pack); }catch(e){} }
+  if(pack){ subsets=enumerateSubsets(pack.n.length); }
+  if(!pack) show('pack');
+  else if(game&&game.hs) goToGame();
+  else show('setup');
+})();
+})();
+</script>
+
+</body>
+</html>
